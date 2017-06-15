@@ -4,6 +4,8 @@ import json
 import logging
 from nats.aio.client import Msg
 
+from nats_helper import NatsHelper
+
 
 def to_json(entity):
     return json.dumps(entity).encode('utf-8')
@@ -26,6 +28,7 @@ async def get_info_sub(msg: Msg, nats_server):
     except Exception as e:
         await nats_server.nc.publish(msg.reply, wrap_exception(e))
 
+
 # MAIN CODE
 def start():
     log = logging.getLogger(__name__)
@@ -39,3 +42,7 @@ def start():
     nats_server.subscribe("test.info", cb=get_info_sub, one_of=True)
     log.info("started")
     nats_server.start()
+
+
+if __name__ == '__main__':
+    start()
