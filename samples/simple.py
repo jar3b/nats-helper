@@ -1,0 +1,41 @@
+import asyncio
+import json
+
+import logging
+from nats.aio.client import Msg
+
+
+def to_json(entity):
+    return json.dumps(entity).encode('utf-8')
+
+
+def wrap_exception(e):
+    return to_json({'error': '%s: %s' % (e.__class__, str(e))})
+
+
+# SUBSCRIBERS
+async def client_echo_sub(msg: Msg, nats_server):
+    # All instances of program will answering to this message
+    await nats_server.nc.publish(msg.reply, nats_server.id)
+
+
+async def get_info_sub(msg: Msg, nats_server):
+    # Only one instance will send a answer
+    try:
+        await nats_server.nc.publish(msg.reply, to_json({'msg': 'Hello'}))
+    except Exception as e:
+        await nats_server.nc.publish(msg.reply, wrap_exception(e))
+
+# MAIN CODE
+def start():
+    log = logging.getLogger(__name__)
+
+    log.info("starting...")
+    loop = asyncio.get_event_loop()
+    nats_server = NatsHelper(loop, log)
+    #
+    nats_server.connect(username='admin', password='pass', host='localhost', port='4221')
+    nats_server.subscribe("test.echo", cb=client_echo_sub)
+    nats_server.subscribe("test.info", cb=get_info_sub, one_of=True)
+    log.info("started")
+    nats_server.start()
