@@ -13,9 +13,9 @@ class NatsHelper(object):
         :param loop: Asyncio event loop 
         :param logger: logger instance, logging.getLogger(...)
         """
-        self.nc = NatsClient()
+        self._nc = NatsClient()
         self._loop = loop
-        self.log = logger
+        self._log = logger
 
     @property
     def connected(self):
