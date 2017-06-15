@@ -19,6 +19,10 @@ class NatsHelper(object):
         self.loop = loop
         self.log = logger
 
+    @property
+    def connected(self):
+        return not self.nc.is_closed
+
     async def _connect(self, *args, **kwargs):
         await self.nc.connect(io_loop=self.loop,
                               servers=['nats://{username}:{password}@{host}:{port}'.format(**kwargs)])
