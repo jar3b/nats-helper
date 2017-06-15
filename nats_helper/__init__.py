@@ -4,27 +4,25 @@ from nats.aio.client import Client as NatsClient
 
 
 class NatsHelper(object):
-    id = None
-    nc = None
-    loop = None
-    log = None
+    _nc = None
+    _loop = None
+    _log = None
 
     def __init__(self, loop, logger):
         """
         :param loop: Asyncio event loop 
         :param logger: logger instance, logging.getLogger(...)
         """
-        self.id = str(id(self)).encode("ASCII")
         self.nc = NatsClient()
-        self.loop = loop
+        self._loop = loop
         self.log = logger
 
     @property
     def connected(self):
-        return not self.nc.is_closed
+        return self._nc.is_connected
 
     async def _connect(self, *args, **kwargs):
-        await self.nc.connect(io_loop=self.loop,
+        await self._nc.connect(io_loop=self._loop,
                               servers=['nats://{username}:{password}@{host}:{port}'.format(**kwargs)])
 
     def connect(self, *args, **kwargs):
@@ -37,36 +35,39 @@ class NatsHelper(object):
          port - NATS port (without default, must be specified) 
         :return: 
         """
-        self.loop.run_until_complete(self._connect(*args, **kwargs))
+        self._loop.run_until_complete(self._connect(*args, **kwargs))
 
     async def _subscribe(self, *args, **kwargs):
-        await self.nc.subscribe(*args, **kwargs, is_async=True)
+        await self._nc.subscribe(*args, **kwargs, is_async=True)
 
-    def subscribe(self, subject, cb, one_of=False):
-        if one_of:
-            subject = "%s.%s" % (self.id.decode("ASCII"), subject)
-
+    def subscribe(self, *args, **kwargs):
+        orig_sub = kwargs['cb']
         async def subscriber(msg):
-            await cb(msg, self)
+            await orig_sub(msg, self)
 
-        self.loop.run_until_complete(self._subscribe(subject, cb=subscriber))
+        kwargs['cb'] = subscriber
+        self._loop.run_until_complete(self._subscribe(*args, **kwargs))
 
     def start(self):
-        self.loop.add_signal_handler(signal.SIGHUP, self.shutdown)
-        self.loop.add_signal_handler(signal.SIGTERM, self.shutdown)
-        self.loop.add_signal_handler(signal.SIGINT, self.shutdown)
+        self._loop.add_signal_handler(signal.SIGHUP, self.shutdown)
+        self._loop.add_signal_handler(signal.SIGTERM, self.shutdown)
+        self._loop.add_signal_handler(signal.SIGINT, self.shutdown)
 
-        self.loop.run_forever()
+        self._loop.run_forever()
 
     # Signal handler
     def shutdown(self):
-        self.log.info("nats-helper closing...")
-        if self.nc.is_closed:
+        self._log.info("nats-helper closing...")
+        if self._nc.is_closed:
             return
 
         time.sleep(1)
-        self.loop.stop()
-        self.log.info("loop stopped, wait 1s for shutdown...")
+        self._loop.stop()
+        self._log.info("loop stopped, wait 1s for shutdown...")
         time.sleep(1)
-        self.loop.create_task(self.nc.close())
-        self.log.info("bye!")
+        self._loop.create_task(self._nc.close())
+        self._log.info("bye!")
+
+    # publish functions
+    def timed_request(self, *args, **kwargs):
+        return self._loop.run_until_complete(self._nc.timed_request(*args, **kwargs))
