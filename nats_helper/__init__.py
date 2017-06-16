@@ -7,12 +7,15 @@ class NatsHelper(object):
     _nc = None
     _loop = None
     _log = None
+    _name = None
 
-    def __init__(self, loop, logger):
+    def __init__(self, loop, logger, name=None):
         """
         :param loop: Asyncio event loop 
         :param logger: logger instance, logging.getLogger(...)
+        :param name: Client name
         """
+        self._name = name
         self._nc = NatsClient()
         self._loop = loop
         self._log = logger
@@ -22,8 +25,31 @@ class NatsHelper(object):
         return self._nc.is_connected
 
     async def _connect(self, *args, **kwargs):
-        await self._nc.connect(io_loop=self._loop,
-                              servers=['nats://{username}:{password}@{host}:{port}'.format(**kwargs)])
+        # callbacks
+        async def error_cb(e):
+            self._log.error("NATS error: %s" % str(e))
+
+        async def close_cb():
+            self._log.warning("connection to NATS closed.")
+            self.shutdown()
+
+        async def disconnected_cb():
+            self._log.error("NATS disconnected!")
+
+        async def reconnected_cb():
+            self._log.info("NATS reconnected!")
+
+        options = {
+            'name': self._name,
+            'servers': ['nats://{username}:{password}@{host}:{port}'.format(**kwargs)],
+            'io_loop': self._loop,
+            'closed_cb': close_cb,
+            'reconnected_cb': reconnected_cb,
+            'error_cb': error_cb,
+            'disconnected_cb': disconnected_cb
+        }
+
+        await self._nc.connect(**options)
 
     def connect(self, *args, **kwargs):
         """
@@ -33,7 +59,6 @@ class NatsHelper(object):
          password - NATS password
          host - NATS hostname (domain or IP)
          port - NATS port (without default, must be specified) 
-        :return: 
         """
         self._loop.run_until_complete(self._connect(*args, **kwargs))
 
@@ -42,6 +67,7 @@ class NatsHelper(object):
 
     def subscribe(self, *args, **kwargs):
         orig_sub = kwargs['cb']
+
         async def subscriber(msg):
             await orig_sub(msg, self)
 
@@ -49,9 +75,8 @@ class NatsHelper(object):
         self._loop.run_until_complete(self._subscribe(*args, **kwargs))
 
     def start(self):
-        self._loop.add_signal_handler(signal.SIGHUP, self.shutdown)
-        self._loop.add_signal_handler(signal.SIGTERM, self.shutdown)
-        self._loop.add_signal_handler(signal.SIGINT, self.shutdown)
+        for sig in ("SIGHUP", "SIGTERM", "SIGINT"):
+            self._loop.add_signal_handler(getattr(signal, sig), self.shutdown)
 
         self._loop.run_forever()
 
@@ -71,3 +96,6 @@ class NatsHelper(object):
     # publish functions
     def timed_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.timed_request(*args, **kwargs))
+
+    async def publish_async(self, *args, **kwargs):
+        return await self._nc.publish(*args, **kwargs)
