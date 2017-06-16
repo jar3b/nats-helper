@@ -1,5 +1,6 @@
 import signal
 import time
+
 from nats.aio.client import Client as NatsClient
 
 
@@ -99,3 +100,6 @@ class NatsHelper(object):
 
     async def publish_async(self, *args, **kwargs):
         return await self._nc.publish(*args, **kwargs)
+
+    def publish(self, *args, **kwargs):
+        return self._loop.run_until_complete(self._nc.publish(*args, **kwargs))
