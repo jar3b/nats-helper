@@ -1,3 +1,4 @@
+import asyncio
 import signal
 import time
 
@@ -102,4 +103,7 @@ class NatsHelper(object):
         return await self._nc.publish(*args, **kwargs)
 
     def publish(self, *args, **kwargs):
-        return self._loop.run_until_complete(self._nc.publish(*args, **kwargs))
+        yield from self._nc.publish(*args, **kwargs)
+
+    def publish_request(self, *args, **kwargs):
+        yield from self._nc.publish_request(*args, **kwargs)
