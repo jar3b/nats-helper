@@ -4,6 +4,7 @@ Simple class-based helper for working with NATS in Python language.
 Adds signal handling, publishing to concrete worker and some more
 
 ## changelog
+- 0.0.6 Auto connect on operations requires nc
 - 0.0.5 Added callbacks
 - 0.0.3 
 
