@@ -1,8 +1,16 @@
-import asyncio
 import signal
 import time
 
 from nats.aio.client import Client as NatsClient
+
+
+def require_connect(func):
+    async def wrapper(self, *args, **kwargs):
+        if not self.connected and self._connect_params is not None:
+            await self.connect_async(**self._connect_params)
+        return await func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class NatsHelper(object):
@@ -10,8 +18,9 @@ class NatsHelper(object):
     _loop = None
     _log = None
     _name = None
+    _connect_params = None
 
-    def __init__(self, loop, logger, name=None):
+    def __init__(self, loop, logger, name=None, connect_params=None):
         """
         :param loop: Asyncio event loop 
         :param logger: logger instance, logging.getLogger(...)
@@ -21,12 +30,13 @@ class NatsHelper(object):
         self._nc = NatsClient()
         self._loop = loop
         self._log = logger
+        self._connect_params = connect_params
 
     @property
     def connected(self):
         return self._nc.is_connected
 
-    async def _connect(self, *args, **kwargs):
+    async def connect_async(self, *args, **kwargs):
         # callbacks
         async def error_cb(e):
             self._log.error("NATS error: %s" % str(e))
@@ -62,8 +72,9 @@ class NatsHelper(object):
          host - NATS hostname (domain or IP)
          port - NATS port (without default, must be specified) 
         """
-        self._loop.run_until_complete(self._connect(*args, **kwargs))
+        self._loop.run_until_complete(self.connect_async(*args, **kwargs))
 
+    @require_connect
     async def _subscribe(self, *args, **kwargs):
         await self._nc.subscribe(*args, **kwargs, is_async=True)
 
@@ -99,11 +110,20 @@ class NatsHelper(object):
     def timed_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.timed_request(*args, **kwargs))
 
-    async def publish_async(self, *args, **kwargs):
-        return await self._nc.publish(*args, **kwargs)
+    @require_connect
+    async def timed_request_async(self, *args, **kwargs):
+        return await self._nc.timed_request(*args, **kwargs)
 
     def publish(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.publish(*args, **kwargs))
 
+    @require_connect
+    async def publish_async(self, *args, **kwargs):
+        return await self._nc.publish(*args, **kwargs)
+
     def publish_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.publish_request(*args, **kwargs))
+
+    @require_connect
+    async def publish_request_async(self, *args, **kwargs):
+        return await self._nc.publish_request(*args, **kwargs)
