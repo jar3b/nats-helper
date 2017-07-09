@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='nats-helper',
-    version='0.0.6',
+    version='0.0.7',
     packages=['nats_helper'],
     url='https://github.com/jar3b/nats-helper',
     license='MIT',

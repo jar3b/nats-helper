@@ -4,11 +4,20 @@ import time
 from nats.aio.client import Client as NatsClient
 
 
-def require_connect(func):
+def require_connect_async(func):
     async def wrapper(self, *args, **kwargs):
         if not self.connected and self._connect_params is not None:
             await self.connect_async(**self._connect_params)
         return await func(self, *args, **kwargs)
+
+    return wrapper
+
+
+def require_connect(func):
+    def wrapper(self, *args, **kwargs):
+        if not self.connected and self._connect_params is not None:
+            self.connect(**self._connect_params)
+        return func(self, *args, **kwargs)
 
     return wrapper
 
@@ -74,7 +83,7 @@ class NatsHelper(object):
         """
         self._loop.run_until_complete(self.connect_async(*args, **kwargs))
 
-    @require_connect
+    @require_connect_async
     async def _subscribe(self, *args, **kwargs):
         await self._nc.subscribe(*args, **kwargs, is_async=True)
 
@@ -107,23 +116,26 @@ class NatsHelper(object):
         self._log.info("bye!")
 
     # publish functions
+    @require_connect
     def timed_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.timed_request(*args, **kwargs))
 
-    @require_connect
+    @require_connect_async
     async def timed_request_async(self, *args, **kwargs):
         return await self._nc.timed_request(*args, **kwargs)
 
+    @require_connect
     def publish(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.publish(*args, **kwargs))
 
-    @require_connect
+    @require_connect_async
     async def publish_async(self, *args, **kwargs):
         return await self._nc.publish(*args, **kwargs)
 
+    @require_connect
     def publish_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.publish_request(*args, **kwargs))
 
-    @require_connect
+    @require_connect_async
     async def publish_request_async(self, *args, **kwargs):
         return await self._nc.publish_request(*args, **kwargs)
