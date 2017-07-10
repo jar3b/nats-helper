@@ -2,6 +2,7 @@ import signal
 import time
 
 from nats.aio.client import Client as NatsClient
+import functools
 
 
 def require_connect_async(func):
@@ -115,26 +116,40 @@ class NatsHelper(object):
         self._loop.create_task(self._nc.close())
         self._log.info("bye!")
 
-    # publish functions
+    # timed_request
     @require_connect
     def timed_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.timed_request(*args, **kwargs))
+
+    @require_connect
+    def timed_request_soon(self, *args, **kwargs):
+        return self._loop.call_soon(functools.partial(self._nc.timed_request, *args, **kwargs))
 
     @require_connect_async
     async def timed_request_async(self, *args, **kwargs):
         return await self._nc.timed_request(*args, **kwargs)
 
+    # publish
     @require_connect
     def publish(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.publish(*args, **kwargs))
+
+    @require_connect
+    def publish_soon(self, *args, **kwargs):
+        return self._loop.call_soon(functools.partial(self._nc.publish, *args, **kwargs))
 
     @require_connect_async
     async def publish_async(self, *args, **kwargs):
         return await self._nc.publish(*args, **kwargs)
 
+    # publish_request
     @require_connect
     def publish_request(self, *args, **kwargs):
         return self._loop.run_until_complete(self._nc.publish_request(*args, **kwargs))
+
+    @require_connect
+    def publish_request_soon(self, *args, **kwargs):
+        return self._loop.call_soon(functools.partial(self._nc.publish_request, *args, **kwargs))
 
     @require_connect_async
     async def publish_request_async(self, *args, **kwargs):
