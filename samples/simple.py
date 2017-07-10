@@ -37,9 +37,9 @@ def start():
     loop = asyncio.get_event_loop()
     nats_server = NatsHelper(loop, log, {'username': 'admin', 'password': 'pass', 'host': 'localhost', 'port': '4221'})
     # Can manual connect on auto-connect if pub-sub operation executed
-    #nats_server.connect(username='admin', password='pass', host='localhost', port='4221')
+    # nats_server.connect(username='admin', password='pass', host='localhost', port='4221')
     nats_server.subscribe("test.echo", cb=client_echo_sub)
-    nats_server.subscribe("test.info", cb=get_info_sub, one_of=True)
+    nats_server.subscribe("test.info", 'core.info', cb=get_info_sub)
     log.info("started")
     nats_server.start()
 

@@ -102,7 +102,7 @@ class NatsHelper(object):
         for sig in ("SIGHUP", "SIGTERM", "SIGINT"):
             self._loop.add_signal_handler(getattr(signal, sig), self.shutdown)
 
-        self._run_exclusive = True
+        self._run_exclusive = exclusive
         if exclusive:
             self._loop.run_forever()
 
