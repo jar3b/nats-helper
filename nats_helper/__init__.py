@@ -29,6 +29,7 @@ class NatsHelper(object):
     _log = None
     _name = None
     _connect_params = None
+    _run_exclusive = None
 
     def __init__(self, loop, logger, name=None, connect_params=None):
         """
@@ -97,22 +98,32 @@ class NatsHelper(object):
         kwargs['cb'] = subscriber
         self._loop.run_until_complete(self._subscribe(*args, **kwargs))
 
-    def start(self):
+    def start(self, exclusive=True):
         for sig in ("SIGHUP", "SIGTERM", "SIGINT"):
             self._loop.add_signal_handler(getattr(signal, sig), self.shutdown)
 
-        self._loop.run_forever()
+        self._run_exclusive = True
+        if exclusive:
+            self._loop.run_forever()
 
     # Signal handler
     def shutdown(self):
-        self._log.info("nats-helper closing...")
-        if self._nc.is_closed:
+        if self._run_exclusive is None:
+            self._log.info("nats-helper isn't started!")
             return
 
-        time.sleep(1)
-        self._loop.stop()
-        self._log.info("loop stopped, wait 1s for shutdown...")
-        time.sleep(1)
+        if self._nc.is_closed:
+            self._log.info("nats-helper was already closed!")
+            return
+
+        if self._run_exclusive:
+            self._log.info("nats-helper closing...")
+            time.sleep(1)
+            self._loop.stop()
+            self._log.info("loop stopped, wait 1s for shutdown...")
+            time.sleep(1)
+            self._run_exclusive = None
+
         self._loop.create_task(self._nc.close())
         self._log.info("bye!")
 
