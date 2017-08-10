@@ -1,8 +1,9 @@
+import asyncio
+import functools
 import signal
 import time
 
 from nats.aio.client import Client as NatsClient
-import functools
 
 
 def require_connect_async(func):
@@ -31,7 +32,12 @@ class NatsHelper(object):
     _connect_params = None
     _run_exclusive = None
 
-    def __init__(self, loop, logger, name=None, connect_params=None):
+    _reconnect_count = None
+    _reconnect_timeout = None
+
+    _subscriptions = None
+
+    def __init__(self, loop, logger, name=None, connect_params=None, reconnect_count=10, reconnect_timeout=5):
         """
         :param loop: Asyncio event loop 
         :param logger: logger instance, logging.getLogger(...)
@@ -42,6 +48,11 @@ class NatsHelper(object):
         self._loop = loop
         self._log = logger
         self._connect_params = connect_params
+
+        self._reconnect_count = reconnect_count
+        self._reconnect_timeout = reconnect_timeout
+
+        self._subscriptions = {}
 
     @property
     def connected(self):
@@ -54,7 +65,22 @@ class NatsHelper(object):
 
         async def close_cb():
             self._log.warning("connection to NATS closed.")
-            self.shutdown()
+            if self._reconnect_count != 0 and self._connect_params is not None:
+                for i in range(1, self._reconnect_count):
+                    try:
+                        self._log.info("Try to reconnecting, %d of %d..." % (i, self._reconnect_count))
+                        await self.connect_async(**self._connect_params)
+                    except Exception as e:
+                        self._log.info("Cannot auto-reconnect: %r, sleeping for %ds" % (e, self._reconnect_timeout))
+                        await asyncio.sleep(self._reconnect_timeout)
+                    else:
+                        self._log.info("Reconnected over %d try!" % i)
+                        for sub_name, sub_params in self._subscriptions.items():
+                            self._log.info("Resubscribe for %s" % sub_name)
+                            await self._subscribe(*sub_params[0], **sub_params[1])
+                        return
+            else:
+                self.shutdown()
 
         async def disconnected_cb():
             self._log.error("NATS disconnected!")
@@ -73,6 +99,7 @@ class NatsHelper(object):
         }
 
         await self._nc.connect(**options)
+        self._connect_params = kwargs
 
     def connect(self, *args, **kwargs):
         """
@@ -87,6 +114,7 @@ class NatsHelper(object):
 
     @require_connect_async
     async def _subscribe(self, *args, **kwargs):
+        self._subscriptions[args[0]] = (args, kwargs)
         await self._nc.subscribe(*args, **kwargs, is_async=True)
 
     def subscribe(self, *args, **kwargs):
