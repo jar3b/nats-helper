@@ -112,10 +112,6 @@ class NatsHelper(object):
             self._log.info("nats-helper isn't started!")
             return
 
-        if self._nc.is_closed:
-            self._log.info("nats-helper was already closed!")
-            return
-
         if self._run_exclusive:
             self._log.info("nats-helper closing...")
             time.sleep(1)
@@ -124,7 +120,11 @@ class NatsHelper(object):
             time.sleep(1)
             self._run_exclusive = None
 
-        self._loop.create_task(self._nc.close())
+        if not self._nc.is_closed:
+            self._loop.create_task(self._nc.close())
+        else:
+            self._log.info("nats-helper was already closed!")
+
         self._log.info("bye!")
 
     # timed_request
