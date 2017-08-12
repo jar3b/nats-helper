@@ -2,8 +2,9 @@ import asyncio
 import functools
 import signal
 import time
+from enum import Enum
 
-from nats.aio.client import Client as NatsClient
+from nats.aio.client import Client as NatsClient, ErrTimeout
 
 
 def require_connect_async(func):
@@ -19,25 +20,36 @@ def require_connect(func):
     def wrapper(self, *args, **kwargs):
         if not self.connected and self._connect_params is not None:
             self.connect(**self._connect_params)
-        return func(self, *args, **kwargs)
+        if self._pre_ping:
+            try:
+                self._loop.run_until_complete(self._nc.flush(0.3))
+            except ErrTimeout:
+                self._log.info("Ping timeout, reconnect")
+
+                async def wait_for_reconnect():
+                    while self._state != self.State.RECONNECTED:
+                        pass
+
+                self._loop.run_until_complete(wait_for_reconnect())
+            return func(self, *args, **kwargs)
+        else:
+            return func(self, *args, **kwargs)
 
     return wrapper
 
 
 class NatsHelper(object):
-    _nc = None
-    _loop = None
-    _log = None
-    _name = None
-    _connect_params = None
-    _run_exclusive = None
+    __slots__ = ['_nc', '_loop', '_log', '_name', '_connect_params', '_run_exclusive', '_reconnect_count',
+                 '_reconnect_timeout', '_subscriptions', '_pre_ping', '_state']
 
-    _reconnect_count = None
-    _reconnect_timeout = None
+    class State(Enum):
+        NOT_CONNECTED = 0
+        CONNECTED = 1
+        DISCONNECTED = 2
+        RECONNECTED = 3
 
-    _subscriptions = None
-
-    def __init__(self, loop, logger, name=None, connect_params=None, reconnect_count=10, reconnect_timeout=5):
+    def __init__(self, loop, logger, name=None, connect_params=None, reconnect_count=10, reconnect_timeout=5,
+                 pre_ping=False):
         """
         :param loop: Asyncio event loop 
         :param logger: logger instance, logging.getLogger(...)
@@ -48,11 +60,13 @@ class NatsHelper(object):
         self._loop = loop
         self._log = logger
         self._connect_params = connect_params
+        self._pre_ping = pre_ping
 
         self._reconnect_count = reconnect_count
         self._reconnect_timeout = reconnect_timeout
 
         self._subscriptions = {}
+        self._state = self.State.NOT_CONNECTED
 
     @property
     def connected(self):
@@ -84,9 +98,11 @@ class NatsHelper(object):
 
         async def disconnected_cb():
             self._log.error("NATS disconnected!")
+            self._state = self.State.DISCONNECTED
 
         async def reconnected_cb():
             self._log.info("NATS reconnected!")
+            self._state = self.State.RECONNECTED
 
         options = {
             'name': self._name,
@@ -100,6 +116,7 @@ class NatsHelper(object):
 
         await self._nc.connect(**options)
         self._connect_params = kwargs
+        self._state = self.State.CONNECTED
 
     def connect(self, *args, **kwargs):
         """
