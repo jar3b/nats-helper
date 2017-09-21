@@ -103,8 +103,8 @@ class NatsHelper(object):
             'disconnected_cb': disconnected_cb
         }
 
-        await self._nc.connect(**options)
         self._connect_params = kwargs
+        await self._nc.connect(**options)
 
     def connect(self, *args, **kwargs):
         """
