@@ -11,6 +11,6 @@ setup(
     description='Simple class-based helper for working with NATS in Python language',
     install_requires=[
         'asyncio==3.4.3',
-        'asyncio-nats-client==0.5.0'
+        'asyncio-nats-client==0.6.0'
     ]
 )
