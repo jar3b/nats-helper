@@ -119,6 +119,7 @@ class NatsHelper(object):
 
     @require_connect_async
     async def _subscribe(self, *args, **kwargs):
+        print('_subscribe')
         self._subscriptions[args[0]] = (args, kwargs)
         await self._nc.subscribe(*args, **kwargs, is_async=True)
 
@@ -175,6 +176,7 @@ class NatsHelper(object):
 
     @require_connect_async
     async def timed_request_async(self, *args, **kwargs):
+        print('timed_request_async')
         return await self._nc.timed_request(*args, **kwargs)
 
     # publish
@@ -184,6 +186,7 @@ class NatsHelper(object):
 
     @require_connect_async
     async def publish_async(self, *args, **kwargs):
+        print('publish_async')
         return await self._nc.publish(*args, **kwargs)
 
     # publish_request
@@ -193,4 +196,5 @@ class NatsHelper(object):
 
     @require_connect_async
     async def publish_request_async(self, *args, **kwargs):
+        print('publish_request_async')
         return await self._nc.publish_request(*args, **kwargs)
