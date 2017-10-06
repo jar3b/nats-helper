@@ -7,9 +7,15 @@ from nats.aio.client import Client as NatsClient
 
 def require_connect_async(func):
     async def wrapper(self, *args, **kwargs):
-        if not self.connected and self._connect_params is not None:
-            await self.connect_async(**self._connect_params)
-        return await func(self, *args, **kwargs)
+        try:
+            if not self.connected and self._connect_params is not None:
+                await self.connect_async(**self._connect_params)
+            return await func(self, *args, **kwargs)
+        except:
+            print('ERRA')
+            import traceback
+            traceback.print_exc()
+            raise
 
     return wrapper
 
